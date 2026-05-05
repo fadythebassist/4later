@@ -177,10 +177,68 @@ function shouldProxyImageHost(hostname: string): boolean {
     h.includes("instagram.com") ||
     h.endsWith("fbcdn.net") ||
     h.includes("facebook.com") ||
+    h.endsWith("twimg.com") ||
     // Facebook crawler thumbnails often come from lookaside.fbsbx.com and are CORP-protected.
     // Proxying them makes them render reliably in our UI.
     h.endsWith("fbsbx.com")
   );
+}
+
+function extractXStatusId(url: URL): string | null {
+  const match = url.pathname.match(/\/status\/(\d+)/);
+  return match?.[1] ?? null;
+}
+
+function extractTwitterSyndicationMeta(jsonText: string): {
+  title?: string;
+  description?: string;
+  image?: string;
+} {
+  try {
+    const data = JSON.parse(jsonText) as {
+      text?: string;
+      user?: { screen_name?: string; name?: string };
+      photos?: Array<{ url?: string; expanded_url?: string }>;
+      mediaDetails?: Array<{ media_url_https?: string; media_url?: string; type?: string }>;
+      video?: { poster?: string };
+      card?: {
+        binding_values?: Record<string, {
+          image_value?: { url?: string };
+          string_value?: string;
+        }>;
+      };
+    };
+
+    const screenName = data.user?.screen_name?.trim();
+    const displayName = data.user?.name?.trim();
+    const title = screenName
+      ? `Tweet by @${screenName}`
+      : displayName
+        ? `Tweet by ${displayName}`
+        : undefined;
+    const description = typeof data.text === "string"
+      ? decodeHtmlEntities(data.text).replace(/\s+/g, " ").trim() || undefined
+      : undefined;
+
+    const bindingValues = data.card?.binding_values ?? {};
+    const image = data.photos?.find((photo) => typeof photo.url === "string")?.url
+      || data.mediaDetails?.find((media) => typeof media.media_url_https === "string")?.media_url_https
+      || data.mediaDetails?.find((media) => typeof media.media_url === "string")?.media_url
+      || data.video?.poster
+      || bindingValues.thumbnail_image_original?.image_value?.url
+      || bindingValues.thumbnail_image_x_large?.image_value?.url
+      || bindingValues.thumbnail_image_large?.image_value?.url
+      || bindingValues.thumbnail_image?.image_value?.url
+      || bindingValues.thumbnail_image_small?.image_value?.url;
+
+    return {
+      title,
+      description,
+      image,
+    };
+  } catch {
+    return {};
+  }
 }
 
 function isFacebookShareLike(url: URL): boolean {
@@ -872,6 +930,7 @@ function unfurlPlugin(): Plugin {
       const attempts: Record<string, Record<string, unknown>> = {
         primary: { ok: primary.ok, status: primary.status, contentType },
         shareResolve: { attempted: isFacebookShare, url: shareResolvedUrl },
+        twitterSyndication: { attempted: false, ok: false },
         instagramJson: { attempted: false, ok: false },
         jina: { attempted: false, ok: false },
         fallbackMediaUrl: { attempted: false, used: false },
@@ -880,6 +939,39 @@ function unfurlPlugin(): Plugin {
         redditJina: { attempted: false, ok: false },
         threadsJina: { attempted: false, ok: false },
       };
+
+      const isTwitterHost =
+        targetUrl.hostname.includes("x.com") ||
+        targetUrl.hostname.includes("twitter.com");
+      if (isTwitterHost && (!meta.title || !meta.description || !meta.image)) {
+        const tweetId = extractXStatusId(targetUrl);
+        if (tweetId) {
+          attempts.twitterSyndication = { attempted: true, ok: false, tweetId };
+          try {
+            const syndicationUrl = `https://cdn.syndication.twimg.com/tweet-result?id=${encodeURIComponent(tweetId)}&token=x`;
+            const syndicationRes = await fetchTextWithTimeout(
+              syndicationUrl,
+              {
+                "user-agent":
+                  "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+                accept: "application/json,text/plain;q=0.9,*/*;q=0.8",
+                "accept-language": "en-US,en;q=0.9",
+              },
+              8000,
+            );
+            attempts.twitterSyndication.ok = syndicationRes.ok;
+            if (syndicationRes.ok) {
+              const twitterMeta = extractTwitterSyndicationMeta(syndicationRes.text);
+              if (!meta.title && twitterMeta.title) meta.title = twitterMeta.title;
+              if (!meta.description && twitterMeta.description)
+                meta.description = twitterMeta.description;
+              if (!meta.image && twitterMeta.image) meta.image = twitterMeta.image;
+            }
+          } catch {
+            // Ignore Twitter syndication failures and fall back to existing metadata paths.
+          }
+        }
+      }
 
       // Instagram often returns a login/blocked page with generic metadata.
       // Try JSON endpoint first, then fall back to a text-proxy fetch.

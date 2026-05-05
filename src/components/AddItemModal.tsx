@@ -5,6 +5,7 @@ import { moderateItem, checkMetadata } from "@/services/ModerationService";
 import { getGeminiSuggestions } from "@/services/GeminiService";
 import { apiUrl } from "@/utils/apiBase";
 import { cleanInstagramDescription } from "@/utils/instagramMetadata";
+import TweetEmbed from "./TweetEmbed";
 import "./Modal.css";
 
 interface AddItemModalProps {
@@ -1426,56 +1427,67 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
           {/* Preview section scrolls with the rest of the form content */}
           {shouldShowPreview && (
             previewConfig ? (
-              <div className={`share-preview share-preview--compact share-preview-platform-card share-preview-platform-card--${previewPlatformClass}${isThreadsPreview ? " share-preview-platform-card--threads-compact" : ""}`}>
-                <div className="share-preview-platform-header">
-                  {previewSource === "facebook" ? (
-                    <FacebookLogo />
-                  ) : (
-                    <span className="share-preview-platform-emoji" aria-hidden="true">
-                      {previewConfig.emoji}
-                    </span>
-                  )}
-                  <span>{previewLabel}</span>
+              previewSource === "twitter" && url.trim() ? (
+                <div className="share-preview share-preview--compact">
+                  <TweetEmbed
+                    url={url}
+                    thumbnail={thumbnail}
+                    title={title.trim() || previewLabel}
+                    description={previewDescription}
+                  />
                 </div>
-                {thumbnail ? (
-                  <div className="share-preview-platform-thumb">
-                    <img
-                      src={thumbnail}
-                      alt={previewLabel}
-                      onError={() => setThumbnail(undefined)}
-                    />
-                  </div>
-                ) : (
-                  <div className="share-preview-platform-body">
-                    <div className="share-preview-platform-icon">
-                      {fetchingTitle ? "⏳" : previewConfig.emoji}
-                    </div>
-                    <div className="share-preview-platform-title">
-                      {fetchingTitle ? "Loading preview…" : (title.trim() || previewLabel)}
-                    </div>
-                    {!fetchingTitle && isThreadsPreview && previewDescription ? (
-                      <div className="share-preview-platform-text share-preview-platform-text--threads">
-                        {previewDescription}
-                      </div>
+              ) : (
+                <div className={`share-preview share-preview--compact share-preview-platform-card share-preview-platform-card--${previewPlatformClass}${isThreadsPreview ? " share-preview-platform-card--threads-compact" : ""}`}>
+                  <div className="share-preview-platform-header">
+                    {previewSource === "facebook" ? (
+                      <FacebookLogo />
                     ) : (
-                      <div className="share-preview-platform-text">
-                        {fetchingTitle
-                          ? `Fetching ${previewConfig.label} metadata`
-                          : `Preview will use ${previewConfig.label} branding when saved`}
-                      </div>
+                      <span className="share-preview-platform-emoji" aria-hidden="true">
+                        {previewConfig.emoji}
+                      </span>
                     )}
+                    <span>{previewLabel}</span>
                   </div>
-                )}
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="share-preview-platform-button"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Open in {previewConfig.label}
-                </a>
-              </div>
+                  {thumbnail ? (
+                    <div className="share-preview-platform-thumb">
+                      <img
+                        src={thumbnail}
+                        alt={previewLabel}
+                        onError={() => setThumbnail(undefined)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="share-preview-platform-body">
+                      <div className="share-preview-platform-icon">
+                        {fetchingTitle ? "⏳" : previewConfig.emoji}
+                      </div>
+                      <div className="share-preview-platform-title">
+                        {fetchingTitle ? "Loading preview…" : (title.trim() || previewLabel)}
+                      </div>
+                      {!fetchingTitle && isThreadsPreview && previewDescription ? (
+                        <div className="share-preview-platform-text share-preview-platform-text--threads">
+                          {previewDescription}
+                        </div>
+                      ) : (
+                        <div className="share-preview-platform-text">
+                          {fetchingTitle
+                            ? `Fetching ${previewConfig.label} metadata`
+                            : `Preview will use ${previewConfig.label} branding when saved`}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="share-preview-platform-button"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open in {previewConfig.label}
+                  </a>
+                </div>
+              )
             ) : (
               <div className="share-preview share-preview--compact">
                 {thumbnail ? (
