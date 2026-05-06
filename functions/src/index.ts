@@ -1,5 +1,6 @@
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
+import type { Request, Response } from "express";
 import * as https from "https";
 import * as http from "http";
 import { URL } from "url";
@@ -9,6 +10,11 @@ const FB_APP_SECRET = defineSecret("FB_APP_SECRET");
 const THREADS_APP_SECRET = defineSecret("THREADS_APP_SECRET");
 
 const SITE_ORIGIN = "https://4stash.com";
+const PROTECTED_DEV_ORIGIN = "https://dev.4stash.com";
+const BLOCKED_DEV_HOSTS = new Set([
+  "stash-dev-22b99.web.app",
+  "stash-dev-22b99.firebaseapp.com",
+]);
 const AGENT_LINK_HEADER = "</.well-known/api-catalog>; rel=\"api-catalog\", </index.md>; rel=\"alternate\"; type=\"text/markdown\"";
 const FALLBACK_MARKDOWN = `# 4Stash — Save Content from Anywhere, Find It Later
 
@@ -36,6 +42,15 @@ const FALLBACK_HTML = `<!doctype html>
     <p><a href="/login">Get started</a></p>
   </body>
 </html>`;
+
+function redirectDefaultDevHost(req: Request, res: Response): boolean {
+  const hostname = (req.hostname || req.headers.host || "").split(":")[0].toLowerCase();
+  if (!BLOCKED_DEV_HOSTS.has(hostname)) return false;
+
+  const path = req.originalUrl || req.url || "/";
+  res.redirect(307, `${PROTECTED_DEV_ORIGIN}${path}`);
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers (ported from vite.config.ts unfurl middleware)
@@ -76,7 +91,9 @@ async function fetchStaticText(path: string, fallback: string): Promise<string> 
   }
 }
 
-async function handleHomeRequest(req: functions.https.Request, res: functions.Response<unknown>): Promise<void> {
+async function handleHomeRequest(req: Request, res: Response): Promise<void> {
+  if (redirectDefaultDevHost(req, res)) return;
+
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Link", AGENT_LINK_HEADER);
   res.setHeader("Vary", "Accept");
@@ -1000,7 +1017,9 @@ function buildInstagramMediaFallbackUrl(u: URL): string | null {
 // Main handler (shared between /api/unfurl and /api/proxy-image)
 // ---------------------------------------------------------------------------
 
-async function handleRequest(req: functions.https.Request, res: functions.Response<unknown>, fbAppId: string, fbAppSecret: string, threadsAppSecret: string): Promise<void> {
+async function handleRequest(req: Request, res: Response, fbAppId: string, fbAppSecret: string, threadsAppSecret: string): Promise<void> {
+  if (redirectDefaultDevHost(req, res)) return;
+
   // CORS — allow 4stash.com and localhost dev
   const origin = req.headers["origin"] as string | undefined;
   const allowedOrigins = ["https://4stash.com", "https://later-production-9a596.web.app", "http://localhost:5173", "http://localhost:4173", "capacitor://localhost"];
@@ -1670,14 +1689,25 @@ async function handleRequest(req: functions.https.Request, res: functions.Respon
 // Exported Cloud Function
 // ---------------------------------------------------------------------------
 
-export const api = functions
-  .runWith({ timeoutSeconds: 30, memory: "256MB", secrets: ["FB_APP_ID", "FB_APP_SECRET", "THREADS_APP_SECRET"] })
-  .https.onRequest(async (req, res) => {
+export const api = onRequest(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [FB_APP_ID, FB_APP_SECRET, THREADS_APP_SECRET],
+  },
+  async (req, res) => {
     await handleRequest(req, res, FB_APP_ID.value(), FB_APP_SECRET.value(), THREADS_APP_SECRET.value());
-  });
+  },
+);
 
-export const home = functions
-  .runWith({ timeoutSeconds: 10, memory: "128MB" })
-  .https.onRequest(async (req, res) => {
+export const home = onRequest(
+  {
+    region: "us-central1",
+    timeoutSeconds: 10,
+    memory: "128MiB",
+  },
+  async (req, res) => {
     await handleHomeRequest(req, res);
-  });
+  },
+);

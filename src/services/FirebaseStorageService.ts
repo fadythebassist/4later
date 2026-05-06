@@ -177,16 +177,9 @@ function detectContentType(url: string): { type: string; source?: string } {
 
 // When running inside Capacitor with server.url = "https://4stash.com", the
 // WebView origin is 4stash.com.  Firebase Auth's JS SDK opens an internal
-// /__/auth/iframe for session persistence — if authDomain points to the default
-// firebaseapp.com subdomain, this becomes a cross-origin iframe inside the
-// WebView, which Android renders as a blank white page after Google sign-in.
-// Overriding authDomain to "4stash.com" makes the iframe same-origin (Firebase
-// Hosting automatically serves /__/auth/ on any connected custom domain).
-// On the web PWA the page also loads from 4stash.com, so the override is safe
-// there too — this effectively makes 4stash.com the canonical auth domain.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: "4stash.com",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,

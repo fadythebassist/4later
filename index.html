@@ -36,6 +36,17 @@
     
     <title>4Stash - Save Content for Later</title>
     <script>
+      (function () {
+        var blockedDevHosts = [
+          "stash-dev-22b99.web.app",
+          "stash-dev-22b99.firebaseapp.com",
+        ];
+        if (blockedDevHosts.indexOf(location.hostname) !== -1) {
+          location.replace("https://dev.4stash.com" + location.pathname + location.search + location.hash);
+        }
+      })();
+    </script>
+    <script>
       // One-time service worker cache reset (v2 — 2026-05-01)
       // Forces stale PWA service workers to unregister so users get fresh code.
       // Safe to remove after all active users have loaded this HTML once.

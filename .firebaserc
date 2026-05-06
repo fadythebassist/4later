@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "later-production-9a596"
+    "default": "stash-dev-22b99",
+    "dev": "stash-dev-22b99",
+    "prd": "later-production-9a596"
   }
 }
