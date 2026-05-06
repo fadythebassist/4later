@@ -840,6 +840,30 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     return false;
   };
 
+  const isGenericTwitterTitle = (value?: string) => {
+    if (!value) return true;
+    const t = value.trim().toLowerCase();
+    if (!t) return true;
+    if (t === "x" || t === "twitter" || t === "tweet") return true;
+    if (/^tweet by @[^\s]+$/.test(t)) return true;
+    if (t.includes("log in") || t.includes("login") || t.includes("sign up"))
+      return true;
+    if (t.includes("not found") || t.includes("unavailable")) return true;
+    if (t.includes("forbidden") || t.includes("access denied")) return true;
+    return false;
+  };
+
+  const isGenericTwitterDescription = (value?: string) => {
+    if (!value) return true;
+    const t = value.trim().toLowerCase();
+    if (!t) return true;
+    if (t.includes("log in") || t.includes("login") || t.includes("sign up"))
+      return true;
+    if (t.includes("join x") || t.includes("join twitter")) return true;
+    if (t.includes("see what's happening")) return true;
+    return false;
+  };
+
   // Fetch metadata from URL (title/description/thumbnail)
   const fetchUrlMetadata = async (
     urlStr: string,
@@ -949,13 +973,17 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         const pathParts = url.pathname.split("/").filter((p) => p);
         const fallbackTitle =
           pathParts.length >= 1 ? `Tweet by @${pathParts[0]}` : "Tweet";
+        const canonicalTweetUrl =
+          url.hostname.includes("x.com") || url.hostname === "www.x.com"
+            ? fullUrl.replace(/https?:\/\/(www\.)?x\.com/i, "https://twitter.com")
+            : fullUrl;
 
         let tweetText: string | undefined;
         let oembedTitle: string | undefined;
 
         // Twitter oEmbed returns the tweet HTML which contains the full tweet text
         try {
-          const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(fullUrl)}&omit_script=true`;
+          const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(canonicalTweetUrl)}&omit_script=true`;
           const oembedRes = await fetch(oembedUrl);
           if (oembedRes.ok) {
             const oembedData = await oembedRes.json();
@@ -976,19 +1004,34 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         }
 
         // Try unfurl for thumbnail
+        let unfurlTitle: string | undefined;
+        let unfurlDescription: string | undefined;
         let thumbnail: string | undefined;
         let unfurlUrl: string | undefined;
         try {
           const meta = await fetchUnfurl(fullUrl);
+          unfurlTitle = meta?.title;
+          unfurlDescription = meta?.description;
           thumbnail = meta?.image || undefined;
           unfurlUrl = meta?.url || undefined;
         } catch {
           // unfurl failed — fine
         }
 
+        const title =
+          !isGenericTwitterTitle(unfurlTitle)
+            ? unfurlTitle
+            : oembedTitle || fallbackTitle;
+
+        const description =
+          tweetText ||
+          (!isGenericTwitterDescription(unfurlDescription)
+            ? unfurlDescription
+            : undefined);
+
         return {
-          title: oembedTitle || fallbackTitle,
-          description: tweetText,
+          title,
+          description,
           thumbnail,
           url: unfurlUrl,
         };
