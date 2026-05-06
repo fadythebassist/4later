@@ -1,0 +1,15 @@
+{
+  "appId": "com.fourstash.app",
+  "appName": "4Stash",
+  "webDir": "dist",
+  "server": {
+    "url": "https://4stash.com/login",
+    "cleartext": false
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com", "twitter.com"]
+    }
+  }
+}
