@@ -1,3 +1,14 @@
+import { Capacitor } from "@capacitor/core";
+
+interface CapacitorWindow {
+  Capacitor?: {
+    isNativePlatform?: () => boolean;
+    getPlatform?: () => string;
+    platform?: string;
+  };
+  androidBridge?: unknown;
+}
+
 /**
  * Base URL for all /api/* calls.
  *
@@ -27,8 +38,6 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
-import { Capacitor } from "@capacitor/core";
-
 /**
  * Returns true when running inside the Capacitor Android WebView.
  *
@@ -40,7 +49,15 @@ import { Capacitor } from "@capacitor/core";
  * bridge is not yet available (e.g. very early in page load).
  */
 export function isAndroidWebView(): boolean {
-  if (Capacitor.isNativePlatform()) return true;
+  if (Capacitor.isNativePlatform()) return Capacitor.getPlatform() === "android";
+
+  const capacitorWindow = window as unknown as CapacitorWindow;
+  const nativePlatform = capacitorWindow.Capacitor?.isNativePlatform?.() ?? false;
+  const capacitorPlatform =
+    capacitorWindow.Capacitor?.getPlatform?.() ?? capacitorWindow.Capacitor?.platform;
+  if (nativePlatform && capacitorPlatform === "android") return true;
+  if (capacitorWindow.androidBridge) return true;
+
   const ua = navigator.userAgent;
-  return /Android/.test(ua) && /wv\b/.test(ua);
+  return /Android/.test(ua) && (/wv\b/.test(ua) || /FourstashApp\//.test(ua));
 }
