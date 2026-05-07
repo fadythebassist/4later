@@ -47,11 +47,11 @@
       })();
     </script>
     <script>
-      // One-time service worker cache reset (v3 — 2026-05-07)
+      // One-time service worker cache reset (v4 — 2026-05-07)
       // Forces stale PWA service workers to unregister so users get fresh code.
       // Safe to remove after all active users have loaded this HTML once.
       (function(){
-        var KEY = '__sw_reset_v3';
+        var KEY = '__sw_reset_v4';
         if (!localStorage.getItem(KEY) && 'serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function(regs) {
             regs.forEach(function(r) { r.unregister(); });
