@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "55507672144",
+    "project_id": "stash-dev-22b99",
+    "storage_bucket": "stash-dev-22b99.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:55507672144:android:cfbff838ef47f62283c555",
+        "android_client_info": {
+          "package_name": "com.fourstash.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "55507672144-31f79cflv9u88mhce01ejhhs43fei9i1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAnDdZ6v49xIIMdXpjlsmmRreqhl8rgH8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "55507672144-31f79cflv9u88mhce01ejhhs43fei9i1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:55507672144:android:da168de334f928c083c555",
+        "android_client_info": {
+          "package_name": "com.fourstash.app.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "55507672144-31f79cflv9u88mhce01ejhhs43fei9i1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAnDdZ6v49xIIMdXpjlsmmRreqhl8rgH8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "55507672144-31f79cflv9u88mhce01ejhhs43fei9i1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

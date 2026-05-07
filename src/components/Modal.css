@@ -794,6 +794,37 @@
   text-align: center;
 }
 
+.share-preview-platform-text--threads {
+  text-align: left;
+  width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.share-preview-platform-card--threads-compact .share-preview-platform-body {
+  min-height: 0;
+  padding: 16px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.share-preview-platform-card--threads-compact .share-preview-platform-icon {
+  font-size: 1.5rem;
+}
+
+.share-preview-platform-card--threads-compact .share-preview-platform-title {
+  text-align: left;
+  width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
 .share-preview-platform-button {
   display: block;
   padding: 12px;

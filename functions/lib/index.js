@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.home = exports.api = void 0;
-const functions = __importStar(require("firebase-functions"));
+const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const https = __importStar(require("https"));
 const http = __importStar(require("http"));
@@ -43,6 +43,11 @@ const FB_APP_ID = (0, params_1.defineSecret)("FB_APP_ID");
 const FB_APP_SECRET = (0, params_1.defineSecret)("FB_APP_SECRET");
 const THREADS_APP_SECRET = (0, params_1.defineSecret)("THREADS_APP_SECRET");
 const SITE_ORIGIN = "https://4stash.com";
+const PROTECTED_DEV_ORIGIN = "https://dev.4stash.com";
+const BLOCKED_DEV_HOSTS = new Set([
+    "stash-dev-22b99.web.app",
+    "stash-dev-22b99.firebaseapp.com",
+]);
 const AGENT_LINK_HEADER = "</.well-known/api-catalog>; rel=\"api-catalog\", </index.md>; rel=\"alternate\"; type=\"text/markdown\"";
 const FALLBACK_MARKDOWN = `# 4Stash — Save Content from Anywhere, Find It Later
 
@@ -69,6 +74,14 @@ const FALLBACK_HTML = `<!doctype html>
     <p><a href="/login">Get started</a></p>
   </body>
 </html>`;
+function redirectDefaultDevHost(req, res) {
+    const hostname = (req.hostname || req.headers.host || "").split(":")[0].toLowerCase();
+    if (!BLOCKED_DEV_HOSTS.has(hostname))
+        return false;
+    const path = req.originalUrl || req.url || "/";
+    res.redirect(307, `${PROTECTED_DEV_ORIGIN}${path}`);
+    return true;
+}
 // ---------------------------------------------------------------------------
 // Helpers (ported from vite.config.ts unfurl middleware)
 // ---------------------------------------------------------------------------
@@ -107,6 +120,8 @@ async function fetchStaticText(path, fallback) {
     }
 }
 async function handleHomeRequest(req, res) {
+    if (redirectDefaultDevHost(req, res))
+        return;
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Link", AGENT_LINK_HEADER);
     res.setHeader("Vary", "Accept");
@@ -1023,6 +1038,8 @@ function buildInstagramMediaFallbackUrl(u) {
 // ---------------------------------------------------------------------------
 async function handleRequest(req, res, fbAppId, fbAppSecret, threadsAppSecret) {
     var _a, _b, _c, _d, _e, _f, _g, _h;
+    if (redirectDefaultDevHost(req, res))
+        return;
     // CORS — allow 4stash.com and localhost dev
     const origin = req.headers["origin"];
     const allowedOrigins = ["https://4stash.com", "https://later-production-9a596.web.app", "http://localhost:5173", "http://localhost:4173", "capacitor://localhost"];
@@ -1743,14 +1760,19 @@ async function handleRequest(req, res, fbAppId, fbAppSecret, threadsAppSecret) {
 // ---------------------------------------------------------------------------
 // Exported Cloud Function
 // ---------------------------------------------------------------------------
-exports.api = functions
-    .runWith({ timeoutSeconds: 30, memory: "256MB", secrets: ["FB_APP_ID", "FB_APP_SECRET", "THREADS_APP_SECRET"] })
-    .https.onRequest(async (req, res) => {
+exports.api = (0, https_1.onRequest)({
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [FB_APP_ID, FB_APP_SECRET, THREADS_APP_SECRET],
+}, async (req, res) => {
     await handleRequest(req, res, FB_APP_ID.value(), FB_APP_SECRET.value(), THREADS_APP_SECRET.value());
 });
-exports.home = functions
-    .runWith({ timeoutSeconds: 10, memory: "128MB" })
-    .https.onRequest(async (req, res) => {
+exports.home = (0, https_1.onRequest)({
+    region: "us-central1",
+    timeoutSeconds: 10,
+    memory: "128MiB",
+}, async (req, res) => {
     await handleHomeRequest(req, res);
 });
 //# sourceMappingURL=index.js.map

@@ -5,6 +5,7 @@ import { moderateItem, checkMetadata } from "@/services/ModerationService";
 import { getGeminiSuggestions } from "@/services/GeminiService";
 import { apiUrl } from "@/utils/apiBase";
 import { cleanInstagramDescription } from "@/utils/instagramMetadata";
+import TweetEmbed from "./TweetEmbed";
 import "./Modal.css";
 
 interface AddItemModalProps {
@@ -839,6 +840,30 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     return false;
   };
 
+  const isGenericTwitterTitle = (value?: string) => {
+    if (!value) return true;
+    const t = value.trim().toLowerCase();
+    if (!t) return true;
+    if (t === "x" || t === "twitter" || t === "tweet") return true;
+    if (/^tweet by @[^\s]+$/.test(t)) return true;
+    if (t.includes("log in") || t.includes("login") || t.includes("sign up"))
+      return true;
+    if (t.includes("not found") || t.includes("unavailable")) return true;
+    if (t.includes("forbidden") || t.includes("access denied")) return true;
+    return false;
+  };
+
+  const isGenericTwitterDescription = (value?: string) => {
+    if (!value) return true;
+    const t = value.trim().toLowerCase();
+    if (!t) return true;
+    if (t.includes("log in") || t.includes("login") || t.includes("sign up"))
+      return true;
+    if (t.includes("join x") || t.includes("join twitter")) return true;
+    if (t.includes("see what's happening")) return true;
+    return false;
+  };
+
   // Fetch metadata from URL (title/description/thumbnail)
   const fetchUrlMetadata = async (
     urlStr: string,
@@ -948,13 +973,17 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         const pathParts = url.pathname.split("/").filter((p) => p);
         const fallbackTitle =
           pathParts.length >= 1 ? `Tweet by @${pathParts[0]}` : "Tweet";
+        const canonicalTweetUrl =
+          url.hostname.includes("x.com") || url.hostname === "www.x.com"
+            ? fullUrl.replace(/https?:\/\/(www\.)?x\.com/i, "https://twitter.com")
+            : fullUrl;
 
         let tweetText: string | undefined;
         let oembedTitle: string | undefined;
 
         // Twitter oEmbed returns the tweet HTML which contains the full tweet text
         try {
-          const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(fullUrl)}&omit_script=true`;
+          const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(canonicalTweetUrl)}&omit_script=true`;
           const oembedRes = await fetch(oembedUrl);
           if (oembedRes.ok) {
             const oembedData = await oembedRes.json();
@@ -975,19 +1004,34 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         }
 
         // Try unfurl for thumbnail
+        let unfurlTitle: string | undefined;
+        let unfurlDescription: string | undefined;
         let thumbnail: string | undefined;
         let unfurlUrl: string | undefined;
         try {
           const meta = await fetchUnfurl(fullUrl);
+          unfurlTitle = meta?.title;
+          unfurlDescription = meta?.description;
           thumbnail = meta?.image || undefined;
           unfurlUrl = meta?.url || undefined;
         } catch {
           // unfurl failed — fine
         }
 
+        const title =
+          !isGenericTwitterTitle(unfurlTitle)
+            ? unfurlTitle
+            : oembedTitle || fallbackTitle;
+
+        const description =
+          tweetText ||
+          (!isGenericTwitterDescription(unfurlDescription)
+            ? unfurlDescription
+            : undefined);
+
         return {
-          title: oembedTitle || fallbackTitle,
-          description: tweetText,
+          title,
+          description,
           thumbnail,
           url: unfurlUrl,
         };
@@ -1088,11 +1132,9 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         const safeDescription = !isGenericThreadsDescription(meta?.description)
           ? meta?.description
           : undefined;
-        // cdninstagram.com thumbnails are CORS-blocked; skip them
-        const safeThumbnail =
-          meta?.image && !meta.image.includes("cdninstagram.com")
-            ? meta.image
-            : undefined;
+        // Keep any image the server found and let our proxy helper normalize
+        // Instagram/Threads CDN URLs so the preview can actually render them.
+        const safeThumbnail = absolutizeThumbnail(meta?.image);
         // Do NOT use meta.url — the unfurl follows threads.net → threads.com
         // redirects and would overwrite the user's URL. Strip tracking params from fullUrl.
         return {
@@ -1407,6 +1449,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   const previewLabel = previewConfig
     ? `${previewConfig.label}${previewContentType ? ` ${previewContentType}` : ""}`
     : "Link preview";
+  const isThreadsPreview = previewSource === "threads";
+  const previewDescription = content.trim();
   const shouldShowPreview = !!(url.trim() || thumbnail || previewSource || fetchingTitle);
 
   return (
@@ -1426,50 +1470,67 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
           {/* Preview section scrolls with the rest of the form content */}
           {shouldShowPreview && (
             previewConfig ? (
-              <div className={`share-preview share-preview--compact share-preview-platform-card share-preview-platform-card--${previewPlatformClass}`}>
-                <div className="share-preview-platform-header">
-                  {previewSource === "facebook" ? (
-                    <FacebookLogo />
-                  ) : (
-                    <span className="share-preview-platform-emoji" aria-hidden="true">
-                      {previewConfig.emoji}
-                    </span>
-                  )}
-                  <span>{previewLabel}</span>
+              previewSource === "twitter" && url.trim() ? (
+                <div className="share-preview share-preview--compact">
+                  <TweetEmbed
+                    url={url}
+                    thumbnail={thumbnail}
+                    title={title.trim() || previewLabel}
+                    description={previewDescription}
+                  />
                 </div>
-                {thumbnail ? (
-                  <div className="share-preview-platform-thumb">
-                    <img
-                      src={thumbnail}
-                      alt={previewLabel}
-                      onError={() => setThumbnail(undefined)}
-                    />
+              ) : (
+                <div className={`share-preview share-preview--compact share-preview-platform-card share-preview-platform-card--${previewPlatformClass}${isThreadsPreview ? " share-preview-platform-card--threads-compact" : ""}`}>
+                  <div className="share-preview-platform-header">
+                    {previewSource === "facebook" ? (
+                      <FacebookLogo />
+                    ) : (
+                      <span className="share-preview-platform-emoji" aria-hidden="true">
+                        {previewConfig.emoji}
+                      </span>
+                    )}
+                    <span>{previewLabel}</span>
                   </div>
-                ) : (
-                  <div className="share-preview-platform-body">
-                    <div className="share-preview-platform-icon">
-                      {fetchingTitle ? "⏳" : previewConfig.emoji}
+                  {thumbnail ? (
+                    <div className="share-preview-platform-thumb">
+                      <img
+                        src={thumbnail}
+                        alt={previewLabel}
+                        onError={() => setThumbnail(undefined)}
+                      />
                     </div>
-                    <div className="share-preview-platform-title">
-                      {fetchingTitle ? "Loading preview…" : previewLabel}
+                  ) : (
+                    <div className="share-preview-platform-body">
+                      <div className="share-preview-platform-icon">
+                        {fetchingTitle ? "⏳" : previewConfig.emoji}
+                      </div>
+                      <div className="share-preview-platform-title">
+                        {fetchingTitle ? "Loading preview…" : (title.trim() || previewLabel)}
+                      </div>
+                      {!fetchingTitle && isThreadsPreview && previewDescription ? (
+                        <div className="share-preview-platform-text share-preview-platform-text--threads">
+                          {previewDescription}
+                        </div>
+                      ) : (
+                        <div className="share-preview-platform-text">
+                          {fetchingTitle
+                            ? `Fetching ${previewConfig.label} metadata`
+                            : `Preview will use ${previewConfig.label} branding when saved`}
+                        </div>
+                      )}
                     </div>
-                    <div className="share-preview-platform-text">
-                      {fetchingTitle
-                        ? `Fetching ${previewConfig.label} metadata`
-                        : `Preview will use ${previewConfig.label} branding when saved`}
-                    </div>
-                  </div>
-                )}
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="share-preview-platform-button"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Open in {previewConfig.label}
-                </a>
-              </div>
+                  )}
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="share-preview-platform-button"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open in {previewConfig.label}
+                  </a>
+                </div>
+              )
             ) : (
               <div className="share-preview share-preview--compact">
                 {thumbnail ? (

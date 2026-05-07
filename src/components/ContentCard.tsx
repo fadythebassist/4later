@@ -800,7 +800,12 @@ const ContentCard: React.FC<ContentCardProps> = ({
         )}
 
         {item.url && derivedSource === "twitter" && (
-          <TweetEmbed url={item.url} />
+          <TweetEmbed
+            url={item.url}
+            thumbnail={displayThumbnail}
+            title={item.title}
+            description={displayContent}
+          />
         )}
 
         {item.url &&
