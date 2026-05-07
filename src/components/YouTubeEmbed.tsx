@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { isAndroidWebView } from "@/utils/apiBase";
 import { openPlatformUrl } from "@/utils/openPlatformUrl";
 import "./SocialCard.css";
@@ -54,17 +54,6 @@ const YouTubeLogo: React.FC = () => (
   </svg>
 );
 
-type AndroidPlayerMode = "thumbnail" | "attempting" | "playing";
-
-interface YouTubePlayerMessage {
-  event?: string;
-  info?: {
-    playerState?: number;
-  };
-}
-
-const ANDROID_PLAYER_TIMEOUT_MS = 8000;
-
 export interface YouTubeEmbedProps {
   url: string;
   autoplay?: boolean;
@@ -83,11 +72,7 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
   const normalizedUrl = useMemo(() => normalizeUrl(url), [url]);
   const videoId = useMemo(() => extractYouTubeVideoId(url), [url]);
   const [failed, setFailed] = useState(false);
-  const [androidPlayerMode, setAndroidPlayerMode] =
-    useState<AndroidPlayerMode>("thumbnail");
-  const [androidAttemptFailed, setAndroidAttemptFailed] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
-  const androidIframeRef = useRef<HTMLIFrameElement | null>(null);
   const useAndroidFallback = isAndroidWebView();
   const playerOrigin = useMemo(() => window.location.origin, []);
 
@@ -109,97 +94,8 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
 
   useEffect(() => {
     setFailed(false);
-    setAndroidPlayerMode("thumbnail");
-    setAndroidAttemptFailed(false);
     setThumbnailFailed(false);
   }, [url]);
-
-  useEffect(() => {
-    if (!useAndroidFallback || androidPlayerMode !== "attempting") return undefined;
-
-    const target = normalizedUrl ?? url;
-    let openedFallback = false;
-
-    const openYouTubeAppFallback = () => {
-      if (openedFallback) return;
-      openedFallback = true;
-      setFailed(true);
-      setAndroidAttemptFailed(true);
-      setAndroidPlayerMode("thumbnail");
-      if (target) {
-        openPlatformUrl(target);
-      }
-    };
-
-    const requestPlayback = () => {
-      androidIframeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
-        "https://www.youtube-nocookie.com",
-      );
-    };
-
-    const timeoutId = window.setTimeout(() => {
-      openYouTubeAppFallback();
-    }, ANDROID_PLAYER_TIMEOUT_MS);
-
-    const playCommandId = window.setTimeout(() => {
-      requestPlayback();
-    }, 250);
-
-    const handleMessage = (event: MessageEvent<unknown>) => {
-      if (
-        !event.origin.includes("youtube.com") &&
-        !event.origin.includes("youtube-nocookie.com")
-      ) {
-        return;
-      }
-
-      let payload: YouTubePlayerMessage | null = null;
-      if (typeof event.data === "string") {
-        try {
-          payload = JSON.parse(event.data) as YouTubePlayerMessage;
-        } catch {
-          return;
-        }
-      } else if (typeof event.data === "object" && event.data !== null) {
-        payload = event.data as YouTubePlayerMessage;
-      }
-
-      if (!payload) return;
-
-      // onReady only proves the cross-origin iframe booted. It does not prove
-      // actual video playback, and Android bot/sign-in challenges may still be
-      // shown inside a loaded frame. Keep the timeout active until we see a
-      // concrete playable state.
-      if (payload.event === "onReady") {
-        requestPlayback();
-        return;
-      }
-
-      if (payload.event === "onError") {
-        window.clearTimeout(timeoutId);
-        openYouTubeAppFallback();
-        return;
-      }
-
-      if (
-        payload.event === "infoDelivery" &&
-        (payload.info?.playerState === 1 || payload.info?.playerState === 3)
-      ) {
-        window.clearTimeout(timeoutId);
-        window.clearTimeout(playCommandId);
-        setAndroidPlayerMode("playing");
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.clearTimeout(playCommandId);
-      window.removeEventListener("message", handleMessage);
-    };
-  }, [androidPlayerMode, normalizedUrl, url, useAndroidFallback]);
 
   const handleClick = useCallback(() => {
     const target = normalizedUrl ?? url;
@@ -209,18 +105,8 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
   }, [normalizedUrl, url]);
 
   const handleThumbnailClick = useCallback(() => {
-    if (useAndroidFallback && embedUrl && !androidAttemptFailed) {
-      setFailed(false);
-      setAndroidPlayerMode("attempting");
-      return;
-    }
-
     handleClick();
-  }, [androidAttemptFailed, embedUrl, handleClick, useAndroidFallback]);
-
-  const handleDismissPlayer = useCallback(() => {
-    setAndroidPlayerMode("thumbnail");
-  }, []);
+  }, [handleClick]);
 
   const effectiveUrl = normalizedUrl ?? url;
   if (!effectiveUrl) return null;
@@ -239,14 +125,12 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
         <span className="social-card-header-text">YouTube</span>
       </div>
 
-      {embedUrl && !failed && (!useAndroidFallback || androidPlayerMode !== "thumbnail") ? (
+      {embedUrl && !failed && !useAndroidFallback ? (
         /* Embed iframe */
         <>
           <div className="social-card-embed-wrap social-card-embed-16x9">
             <iframe
-              ref={useAndroidFallback ? androidIframeRef : undefined}
-              className={useAndroidFallback && androidPlayerMode === "attempting" ? "social-card-probe-iframe" : undefined}
-              src={useAndroidFallback ? embedUrl.replace("autoplay=0", "autoplay=1") : embedUrl}
+              src={embedUrl}
               title="YouTube video"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
@@ -254,31 +138,9 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
               referrerPolicy="strict-origin-when-cross-origin"
               onError={() => {
                 setFailed(true);
-                setAndroidAttemptFailed(true);
-                setAndroidPlayerMode("thumbnail");
-                if (useAndroidFallback) {
-                  handleClick();
-                }
               }}
             />
-            {useAndroidFallback && androidPlayerMode === "attempting" && (
-              <div className="social-card-probe-loading">
-                <div className="social-card-icon">▶️</div>
-                <p className="social-card-cta">Opening YouTube…</p>
-              </div>
-            )}
           </div>
-          {useAndroidFallback && androidPlayerMode === "playing" && (
-            <div className="social-card-iframe-controls">
-              <button
-                type="button"
-                className="social-card-iframe-dismiss"
-                onClick={(e) => { e.stopPropagation(); handleDismissPlayer(); }}
-              >
-                Show thumbnail
-              </button>
-            </div>
-          )}
         </>
       ) : ytThumbnail && !thumbnailFailed ? (
         <div
@@ -292,7 +154,7 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
             onError={() => setThumbnailFailed(true)}
             loading="lazy"
           />
-          {useAndroidFallback && !androidAttemptFailed && (
+          {useAndroidFallback && (
             <div className="social-card-play-overlay">▶</div>
           )}
         </div>
