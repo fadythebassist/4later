@@ -80,8 +80,8 @@ public class MainActivity extends BridgeActivity {
                     return false;
                 }
 
-                // Let the app's own origin load normally inside the WebView.
-                if ("https".equals(scheme) && url.startsWith("https://4stash.com")) {
+                // Let the app and dev access/PIN auth origins load normally inside the WebView.
+                if ("https".equals(scheme) && isAllowedWebViewHost(uri.getHost())) {
                     return false;
                 }
 
@@ -139,7 +139,7 @@ public class MainActivity extends BridgeActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 Log.d(TAG, "onPageFinished: " + url);
-                if (url != null && url.startsWith("https://4stash.com") && pendingShareText != null) {
+                if (url != null && isAppUrl(url) && pendingShareText != null) {
                     String text = pendingShareText;
                     pendingShareText = null;
                     // Give React/router a moment to mount before navigating.
@@ -179,6 +179,17 @@ public class MainActivity extends BridgeActivity {
         return intent != null
             && Intent.ACTION_SEND.equals(intent.getAction())
             && "text/plain".equals(intent.getType());
+    }
+
+    private boolean isAppUrl(String url) {
+        Uri uri = Uri.parse(url);
+        return "https".equals(uri.getScheme()) && isAllowedWebViewHost(uri.getHost());
+    }
+
+    private boolean isAllowedWebViewHost(String host) {
+        return "4stash.com".equals(host)
+            || "dev.4stash.com".equals(host)
+            || (host != null && host.endsWith(".cloudflareaccess.com"));
     }
 
     private void dispatchShare(String text) {
