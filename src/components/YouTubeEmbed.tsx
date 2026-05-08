@@ -1,4 +1,6 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { isAndroidWebView } from "@/utils/apiBase";
+import { openPlatformUrl } from "@/utils/openPlatformUrl";
 import "./SocialCard.css";
 
 function normalizeUrl(urlStr: string): string | null {
@@ -71,6 +73,8 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
   const videoId = useMemo(() => extractYouTubeVideoId(url), [url]);
   const [failed, setFailed] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const useAndroidFallback = isAndroidWebView();
+  const playerOrigin = useMemo(() => window.location.origin, []);
 
   const embedUrl = useMemo(() => {
     if (!videoId) return null;
@@ -80,18 +84,29 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
       autoplay: autoplay ? "1" : "0",
       mute: autoplay ? "1" : "0",
       playsinline: "1",
+      enablejsapi: "1",
+      origin: playerOrigin,
     });
     // Use YouTube's official privacy-enhanced embed domain in both browser and
     // app WebView. If playback fails, fall back to the thumbnail/open action.
     return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
-  }, [videoId, autoplay]);
+  }, [videoId, autoplay, playerOrigin]);
+
+  useEffect(() => {
+    setFailed(false);
+    setThumbnailFailed(false);
+  }, [url]);
 
   const handleClick = useCallback(() => {
     const target = normalizedUrl ?? url;
     if (target) {
-      window.open(target, "_blank", "noopener,noreferrer");
+      openPlatformUrl(target);
     }
   }, [normalizedUrl, url]);
+
+  const handleThumbnailClick = useCallback(() => {
+    handleClick();
+  }, [handleClick]);
 
   const effectiveUrl = normalizedUrl ?? url;
   if (!effectiveUrl) return null;
@@ -110,23 +125,27 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
         <span className="social-card-header-text">YouTube</span>
       </div>
 
-      {embedUrl && !failed ? (
+      {embedUrl && !failed && !useAndroidFallback ? (
         /* Embed iframe */
-        <div className="social-card-embed-wrap social-card-embed-16x9">
-          <iframe
-            src={embedUrl}
-            title="YouTube video"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-            onError={() => setFailed(true)}
-          />
-        </div>
+        <>
+          <div className="social-card-embed-wrap social-card-embed-16x9">
+            <iframe
+              src={embedUrl}
+              title="YouTube video"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              onError={() => {
+                setFailed(true);
+              }}
+            />
+          </div>
+        </>
       ) : ytThumbnail && !thumbnailFailed ? (
         <div
           className="social-card-thumbnail"
-          onClick={(e) => { e.stopPropagation(); handleClick(); }}
+          onClick={(e) => { e.stopPropagation(); handleThumbnailClick(); }}
           style={{ cursor: "pointer" }}
         >
           <img
@@ -135,6 +154,9 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
             onError={() => setThumbnailFailed(true)}
             loading="lazy"
           />
+          {useAndroidFallback && (
+            <div className="social-card-play-overlay">▶</div>
+          )}
         </div>
       ) : (
         <div
@@ -156,7 +178,7 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
         </div>
       )}
 
-      {embedUrl && !failed && (displayTitle || displayDesc) && (
+      {embedUrl && !failed && !useAndroidFallback && (displayTitle || displayDesc) && (
         <div className="social-card-text">
           {displayTitle && <div className="social-card-title">{displayTitle}</div>}
           {displayDesc && <div className="social-card-description">{displayDesc}</div>}
@@ -168,7 +190,7 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
         target="_blank"
         rel="noopener noreferrer"
         className="social-card-button"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleClick(); }}
       >
         Open in YouTube
       </a>

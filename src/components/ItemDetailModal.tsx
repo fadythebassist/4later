@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Item } from "@/types";
 import { useData } from "@/contexts/DataContext";
+import { apiUrl, isAndroidWebView } from "@/utils/apiBase";
 import { cleanFacebookUrl, isFacebookUrl } from "@/utils/facebook";
-import { apiUrl } from "@/utils/apiBase";
 import { isGenericInstagramDescription } from "@/utils/instagramMetadata";
+import { openPlatformUrl } from "@/utils/openPlatformUrl";
 import "./Modal.css";
 
 function decodeHtmlEntities(text: string): string {
@@ -200,6 +201,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const youtubeEmbedUrl =
     item.source === "youtube" && item.url ? getYouTubeEmbedUrl(item.url) : null;
+  const useAndroidYouTubeFallback = isAndroidWebView() && item.source === "youtube";
 
   const displayThumbnail = useMemo(
     () => toProxyThumbnail(resolvedThumbnail ?? item.thumbnail),
@@ -350,7 +352,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         </div>
 
         <div className="modal-body">
-          {youtubeEmbedUrl ? (
+          {youtubeEmbedUrl && !useAndroidYouTubeFallback ? (
             <div className="video-player">
               <iframe
                 src={youtubeEmbedUrl}
@@ -359,6 +361,29 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
               ></iframe>
+            </div>
+          ) : useAndroidYouTubeFallback && displayUrl ? (
+            <div className="detail-section">
+              {displayThumbnail && !thumbnailError && (
+                <div
+                  className="detail-thumbnail"
+                  onClick={() => openPlatformUrl(displayUrl)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <img
+                    src={displayThumbnail}
+                    alt={safeDisplayTitle}
+                    onError={() => setThumbnailError(true)}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => openPlatformUrl(displayUrl)}
+              >
+                Open in YouTube
+              </button>
             </div>
           ) : (
             displayThumbnail && !thumbnailError && (

@@ -105,6 +105,24 @@
   border: 0;
 }
 
+.social-card-embed-16x9 iframe.social-card-probe-iframe {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.social-card-probe-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--surface-secondary, #f0f2f5);
+  color: var(--text-secondary, #555);
+}
+
 /* Instagram post embed (square-ish) */
 .social-card-embed-ig-post {
   width: 100%;

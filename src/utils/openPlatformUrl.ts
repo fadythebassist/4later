@@ -68,6 +68,11 @@ const PLATFORM_CONFIGS: PlatformConfig[] = [
     androidPackage: "com.instagram.barcelona",
     matches: (p) => p.hostname.includes("threads.net"),
   },
+  {
+    androidPackage: "com.google.android.youtube",
+    matches: (p) =>
+      p.hostname.includes("youtube.com") || p.hostname.includes("youtu.be"),
+  },
 ];
 
 /**
